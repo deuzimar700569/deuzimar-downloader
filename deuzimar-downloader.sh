@@ -75,23 +75,31 @@ show_manual() {
 }
 
 update_ytdlp() {
-    echo -e "${YELLOW}🔃 Atualizando yt-dlp...${NC}"
+    echo -e "${YELLOW}🔃 Atualizando yt-dlp e curl_cffi...${NC}"
     if command -v pip3 &>/dev/null; then
-        pip3 install --upgrade yt-dlp requests curl_cffi --break-system-packages 2>/dev/null || pip3 install --upgrade yt-dlp requests curl_cffi 2>/dev/null
+        pip3 install --upgrade yt-dlp curl_cffi --break-system-packages 2>/dev/null \
+            || pip3 install --upgrade yt-dlp curl_cffi 2>/dev/null
     fi
     yt-dlp --version 2>/dev/null
 }
 
 detect_impersonate() {
     if ! yt-dlp --list-impersonate-targets &>/dev/null; then
+        echo -e "${YELLOW}⚠️  yt-dlp --list-impersonate-targets falhou.${NC}" >&2
         return 1
     fi
     local line target
-    line=$(yt-dlp --list-impersonate-targets 2>/dev/null | grep 'Chrome-' | head -1)
-    [[ -z "$line" ]] && return 1
+    line=$(yt-dlp --list-impersonate-targets 2>/dev/null | grep -m1 'Chrome-')
+    if [[ -z "$line" ]]; then
+        echo -e "${YELLOW}⚠️  Nenhum alvo Chrome- disponível (curl_cffi ausente?).${NC}" >&2
+        return 1
+    fi
+    if echo "$line" | grep -qi 'unavailable'; then
+        echo -e "${YELLOW}⚠️  Alvos impersonate unavailable — curl_cffi com problema.${NC}" >&2
+        return 1
+    fi
     target=$(echo "$line" | awk '{print $1 ":" $2}')
-    target="${target%:}"
-    echo "$target" | grep -q ':' || return 1
+    [[ "$target" != *:* ]] && return 1
     echo "$target"
 }
 
@@ -110,24 +118,34 @@ download_video() {
 
     update_ytdlp
 
-    cookies_opts=""
-    for browser in firefox chrome chromium brave; do
-        if [ -d "$HOME/.mozilla/firefox" ] || [ -d "$HOME/.config/google-chrome" ] || [ -d "$HOME/.config/chromium" ] || [ -d "$HOME/.config/BraveSoftware" ]; then
-            cookies_opts="--cookies-from-browser $browser"
-            break
-        fi
-    done
+    cookies_opts=()
+    if [ -d "$HOME/.mozilla/firefox" ]; then
+        cookies_opts=(--cookies-from-browser firefox)
+    elif [ -d "$HOME/.config/google-chrome" ]; then
+        cookies_opts=(--cookies-from-browser chrome)
+    elif [ -d "$HOME/.config/chromium" ]; then
+        cookies_opts=(--cookies-from-browser chromium)
+    elif [ -d "$HOME/.config/BraveSoftware" ]; then
+        cookies_opts=(--cookies-from-browser brave)
+    fi
 
     ua="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36"
     impersonate_target=$(detect_impersonate)
-    [[ -n "$impersonate_target" ]] && impersonate_opts="--impersonate $impersonate_target" || impersonate_opts=""
+    impersonate_opts=()
+    [[ -n "$impersonate_target" ]] && impersonate_opts=(--impersonate "$impersonate_target")
 
     run_ytdlp() {
         local url_try="$1" referer="${2:-}"
-        yt-dlp $cookies_opts $impersonate_opts -f "bestvideo*+bestaudio/best" "$url_try" --user-agent "$ua" ${referer:+--referer "$referer"} && return 0
-        if [[ -n "$impersonate_opts" ]]; then
+        local ref_opts=()
+        [[ -n "$referer" ]] && ref_opts=(--referer "$referer")
+        yt-dlp "${cookies_opts[@]}" "${impersonate_opts[@]}" \
+            -f "bestvideo*+bestaudio/best" "$url_try" \
+            --user-agent "$ua" "${ref_opts[@]}" && return 0
+        if ((${#impersonate_opts[@]})); then
             echo -e "${YELLOW}⚠️  Retry sem impersonate...${NC}"
-            yt-dlp $cookies_opts -f "bestvideo*+bestaudio/best" "$url_try" --user-agent "$ua" ${referer:+--referer "$referer"} && return 0
+            yt-dlp "${cookies_opts[@]}" \
+                -f "bestvideo*+bestaudio/best" "$url_try" \
+                --user-agent "$ua" "${ref_opts[@]}" && return 0
         fi
         return 1
     }

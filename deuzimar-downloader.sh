@@ -84,21 +84,15 @@ update_ytdlp() {
 
 detect_impersonate() {
     if ! yt-dlp --list-impersonate-targets &>/dev/null; then
-        return
+        return 1
     fi
-    local line
+    local line target
     line=$(yt-dlp --list-impersonate-targets 2>/dev/null | grep 'Chrome-' | head -1)
-    if [[ -n "$line" ]]; then
-        local client os
-        client=$(echo "$line" | awk '{print $1}')
-        os=$(echo "$line" | awk '{print $2}')
-        if [[ -n "$client" && -n "$os" ]]; then
-            echo "--impersonate ${client}:${os}"
-            return
-        fi
-    fi
-    # Hardcoded fallback
-    echo "--impersonate Chrome-133:Macos-15"
+    [[ -z "$line" ]] && return 1
+    target=$(echo "$line" | awk '{print $1 ":" $2}')
+    target="${target%:}"
+    echo "$target" | grep -q ':' || return 1
+    echo "$target"
 }
 
 download_video() {
@@ -125,17 +119,21 @@ download_video() {
     done
 
     ua="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36"
-    impersonate_opts=$(detect_impersonate)
+    impersonate_target=$(detect_impersonate)
+    [[ -n "$impersonate_target" ]] && impersonate_opts="--impersonate $impersonate_target" || impersonate_opts=""
+
+    run_ytdlp() {
+        local url_try="$1" referer="${2:-}"
+        yt-dlp $cookies_opts $impersonate_opts -f "bestvideo*+bestaudio/best" "$url_try" --user-agent "$ua" ${referer:+--referer "$referer"} && return 0
+        if [[ -n "$impersonate_opts" ]]; then
+            echo -e "${YELLOW}⚠️  Retry sem impersonate...${NC}"
+            yt-dlp $cookies_opts -f "bestvideo*+bestaudio/best" "$url_try" --user-agent "$ua" ${referer:+--referer "$referer"} && return 0
+        fi
+        return 1
+    }
 
     echo -e "\n${GREEN}🔄 Tentando download com yt-dlp...${NC}"
-
-    yt-dlp $cookies_opts $impersonate_opts -f "bestvideo*+bestaudio/best" "$url" --user-agent "$ua"
-    if [ $? -eq 0 ]; then
-        echo -e "\n${GREEN}✅ Download concluído com sucesso! O arquivo está na pasta atual.${NC}"
-        echo -e "\n${CYAN}Pressione ENTER para continuar...${NC}"
-        read
-        return
-    fi
+    run_ytdlp "$url" && { echo -e "\n${GREEN}✅ Download concluído com sucesso! O arquivo está na pasta atual.${NC}"; echo -e "\n${CYAN}Pressione ENTER para continuar...${NC}"; read; return; }
 
     echo -e "\n${YELLOW}⚠️  Falhou. Extraindo iframe manualmente da página...${NC}"
 
@@ -148,13 +146,7 @@ download_video() {
     for iframe_url in $iframe_urls; do
         [[ -z "$iframe_url" ]] && continue
         echo -e "${GREEN}🔄 Tentando: $iframe_url${NC}"
-        yt-dlp $cookies_opts $impersonate_opts -f "bestvideo*+bestaudio/best" "$iframe_url" --user-agent "$ua" --referer "$url"
-        if [ $? -eq 0 ]; then
-            echo -e "\n${GREEN}✅ Download concluído com sucesso!${NC}"
-            echo -e "\n${CYAN}Pressione ENTER para continuar...${NC}"
-            read
-            return
-        fi
+        run_ytdlp "$iframe_url" "$url" && { echo -e "\n${GREEN}✅ Download concluído com sucesso!${NC}"; echo -e "\n${CYAN}Pressione ENTER para continuar...${NC}"; read; return; }
     done
 
     echo -e "\n${YELLOW}💡 Tente instalar nodejs para suporte a JavaScript: sudo apt install nodejs${NC}"

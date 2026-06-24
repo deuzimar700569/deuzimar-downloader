@@ -58,6 +58,8 @@ if ! command -v yt-dlp &> /dev/null; then
     pip3 install yt-dlp --break-system-packages 2>/dev/null || pip3 install yt-dlp
 else
     echo -e "${GREEN}✅ yt-dlp já está instalado.${NC}"
+    echo -e "${YELLOW}🔃 Atualizando yt-dlp para a versão mais recente...${NC}"
+    pip3 install --upgrade yt-dlp --break-system-packages 2>/dev/null || pip3 install --upgrade yt-dlp
 fi
 
 install_if_missing ffmpeg ffmpeg

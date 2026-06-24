@@ -77,23 +77,68 @@ show_manual() {
 download_video() {
     echo -e "\n${BLUE}📌 Cole a URL do vídeo:${NC}"
     read -p "> " url
+    url="$(echo "$url" | xargs)"
     if [[ -z "$url" ]]; then
         echo -e "${RED}❌ Nenhuma URL foi fornecida.${NC}"
         sleep 1.5
         return
     fi
-    
-    echo -e "\n${GREEN}🔄 Verificando URL...${NC}"
-    echo -e "${CYAN}📥 Comando: yt-dlp -f \"bestvideo*+bestaudio/best\" \"$url\"${NC}\n"
-    
-    yt-dlp -f "bestvideo*+bestaudio/best" "$url"
-    
+    if [[ ! "$url" =~ ^https?:// ]]; then
+        echo -e "${YELLOW}⚠️  A URL não começa com http:// ou https://. Tentando mesmo assim...${NC}"
+    fi
+
+    echo -e "${YELLOW}🔃 Verificando atualização do yt-dlp...${NC}"
+    yt-dlp -U 2>/dev/null | tail -1
+
+    cookies_opts=""
+    for browser in firefox chrome chromium brave; do
+        if [ -d "$HOME/.mozilla/firefox" ] || [ -d "$HOME/.config/google-chrome" ] || [ -d "$HOME/.config/chromium" ] || [ -d "$HOME/.config/BraveSoftware" ]; then
+            cookies_opts="--cookies-from-browser $browser"
+            break
+        fi
+    done
+
+    ua="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+
+    echo -e "\n${GREEN}🔄 Tentando download com yt-dlp...${NC}"
+
+    yt-dlp $cookies_opts -f "bestvideo*+bestaudio/best" "$url" --user-agent "$ua"
     if [ $? -eq 0 ]; then
         echo -e "\n${GREEN}✅ Download concluído com sucesso! O arquivo está na pasta atual.${NC}"
-    else
-        echo -e "\n${RED}❌ Falha no download. Verifique a URL ou sua conexão.${NC}"
+        echo -e "\n${CYAN}Pressione ENTER para continuar...${NC}"
+        read
+        return
     fi
-    
+
+    echo -e "\n${YELLOW}⚠️  Falhou. Extraindo iframe manualmente da página...${NC}"
+
+    html=$(curl -s -L -A "$ua" "$url" 2>/dev/null)
+    iframe_urls=$(echo "$html" | grep -oE 'src="https?://[^"]+\.(php|html)\?[^"]*"' | sed 's/.*src="//;s/"$//')
+    if [ -z "$iframe_urls" ]; then
+        iframe_urls=$(echo "$html" | grep -oE 'src="https?://[^"]+"' | sed 's/.*src="//;s/"//' | grep -viE 'google|facebook|twitter|wp-|jquery|gravatar|gstatic')
+    fi
+
+    for iframe_url in $iframe_urls; do
+        [[ -z "$iframe_url" ]] && continue
+        echo -e "${GREEN}🔄 Tentando: $iframe_url${NC}"
+        yt-dlp $cookies_opts -f "bestvideo*+bestaudio/best" "$iframe_url" --user-agent "$ua" --referer "$url"
+        if [ $? -eq 0 ]; then
+            echo -e "\n${GREEN}✅ Download concluído com sucesso!${NC}"
+            echo -e "\n${CYAN}Pressione ENTER para continuar...${NC}"
+            read
+            return
+        fi
+    done
+
+    echo -e "\n${YELLOW}💡 Tente instalar nodejs para suporte a JavaScript: sudo apt install nodejs${NC}"
+
+    echo -e "\n${RED}❌ Falha no download. Verifique a URL ou sua conexão.${NC}"
+    echo -e "${YELLOW}💡 Dicas:${NC}"
+    echo -e "  • Certifique-se de que a URL está completa (incluindo https://)"
+    echo -e "  • Atualize o yt-dlp manualmente: sudo yt-dlp -U"
+    echo -e "  • Se o site exigir login, use: --cookies-from-browser firefox"
+    echo -e "  • Para debug: yt-dlp --verbose \"$url\""
+
     echo -e "\n${CYAN}Pressione ENTER para continuar...${NC}"
     read
 }

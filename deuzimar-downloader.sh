@@ -83,12 +83,22 @@ update_ytdlp() {
 }
 
 detect_impersonate() {
-    if yt-dlp --list-impersonate-targets &>/dev/null; then
-        local target=$(yt-dlp --list-impersonate-targets 2>/dev/null | grep Chrome | head -1 | awk '{print $1, $2}' | tr ' ' ':')
-        if [[ -n "$target" ]]; then
-            echo "--impersonate $target"
+    if ! yt-dlp --list-impersonate-targets &>/dev/null; then
+        return
+    fi
+    local line
+    line=$(yt-dlp --list-impersonate-targets 2>/dev/null | grep 'Chrome-' | head -1)
+    if [[ -n "$line" ]]; then
+        local client os
+        client=$(echo "$line" | awk '{print $1}')
+        os=$(echo "$line" | awk '{print $2}')
+        if [[ -n "$client" && -n "$os" ]]; then
+            echo "--impersonate ${client}:${os}"
+            return
         fi
     fi
+    # Hardcoded fallback
+    echo "--impersonate Chrome-133:Macos-15"
 }
 
 download_video() {

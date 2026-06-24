@@ -74,6 +74,23 @@ show_manual() {
     read
 }
 
+update_ytdlp() {
+    echo -e "${YELLOW}🔃 Atualizando yt-dlp...${NC}"
+    if command -v pip3 &>/dev/null; then
+        pip3 install --upgrade yt-dlp requests curl_cffi --break-system-packages 2>/dev/null || pip3 install --upgrade yt-dlp requests curl_cffi 2>/dev/null
+    fi
+    yt-dlp --version 2>/dev/null
+}
+
+detect_impersonate() {
+    if yt-dlp --list-impersonate-targets &>/dev/null; then
+        local target=$(yt-dlp --list-impersonate-targets 2>/dev/null | grep Chrome | head -1 | awk '{print $1, $2}' | tr ' ' ':')
+        if [[ -n "$target" ]]; then
+            echo "--impersonate $target"
+        fi
+    fi
+}
+
 download_video() {
     echo -e "\n${BLUE}📌 Cole a URL do vídeo:${NC}"
     read -p "> " url
@@ -87,8 +104,7 @@ download_video() {
         echo -e "${YELLOW}⚠️  A URL não começa com http:// ou https://. Tentando mesmo assim...${NC}"
     fi
 
-    echo -e "${YELLOW}🔃 Verificando atualização do yt-dlp...${NC}"
-    yt-dlp -U 2>/dev/null | tail -1
+    update_ytdlp
 
     cookies_opts=""
     for browser in firefox chrome chromium brave; do
@@ -98,11 +114,12 @@ download_video() {
         fi
     done
 
-    ua="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+    ua="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36"
+    impersonate_opts=$(detect_impersonate)
 
     echo -e "\n${GREEN}🔄 Tentando download com yt-dlp...${NC}"
 
-    yt-dlp $cookies_opts -f "bestvideo*+bestaudio/best" "$url" --user-agent "$ua"
+    yt-dlp $cookies_opts $impersonate_opts -f "bestvideo*+bestaudio/best" "$url" --user-agent "$ua"
     if [ $? -eq 0 ]; then
         echo -e "\n${GREEN}✅ Download concluído com sucesso! O arquivo está na pasta atual.${NC}"
         echo -e "\n${CYAN}Pressione ENTER para continuar...${NC}"
@@ -115,13 +132,13 @@ download_video() {
     html=$(curl -s -L -A "$ua" "$url" 2>/dev/null)
     iframe_urls=$(echo "$html" | grep -oE 'src="https?://[^"]+\.(php|html)\?[^"]*"' | sed 's/.*src="//;s/"$//')
     if [ -z "$iframe_urls" ]; then
-        iframe_urls=$(echo "$html" | grep -oE 'src="https?://[^"]+"' | sed 's/.*src="//;s/"//' | grep -viE 'google|facebook|twitter|wp-|jquery|gravatar|gstatic')
+        iframe_urls=$(echo "$html" | grep -oE 'src="https?://[^"]+"' | sed 's/.*src="//;s/"//' | grep -viE 'google|facebook|twitter|wp-|jquery|gravatar|gstatic|googletagmanager')
     fi
 
     for iframe_url in $iframe_urls; do
         [[ -z "$iframe_url" ]] && continue
         echo -e "${GREEN}🔄 Tentando: $iframe_url${NC}"
-        yt-dlp $cookies_opts -f "bestvideo*+bestaudio/best" "$iframe_url" --user-agent "$ua" --referer "$url"
+        yt-dlp $cookies_opts $impersonate_opts -f "bestvideo*+bestaudio/best" "$iframe_url" --user-agent "$ua" --referer "$url"
         if [ $? -eq 0 ]; then
             echo -e "\n${GREEN}✅ Download concluído com sucesso!${NC}"
             echo -e "\n${CYAN}Pressione ENTER para continuar...${NC}"
@@ -135,7 +152,7 @@ download_video() {
     echo -e "\n${RED}❌ Falha no download. Verifique a URL ou sua conexão.${NC}"
     echo -e "${YELLOW}💡 Dicas:${NC}"
     echo -e "  • Certifique-se de que a URL está completa (incluindo https://)"
-    echo -e "  • Atualize o yt-dlp manualmente: sudo yt-dlp -U"
+    echo -e "  • Atualize o yt-dlp manualmente: pip3 install --upgrade yt-dlp"
     echo -e "  • Se o site exigir login, use: --cookies-from-browser firefox"
     echo -e "  • Para debug: yt-dlp --verbose \"$url\""
 

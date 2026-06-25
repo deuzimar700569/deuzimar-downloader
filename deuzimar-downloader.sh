@@ -213,14 +213,13 @@ download_video() {
   html=$(curl -s -L -A "$ua" "$url" 2>/dev/null)
 
   iframe_urls=$(echo "$html" \
-    | grep -oiE '<iframe[^>]+src="[^"]+"' \
-    | sed 's/.*src="//;s/".*//' \
-    | grep -viE 'google|facebook|twitter|wp-|jquery|gravatar|gstatic|googletagmanager|doubleclick|analytics|cdn\.|static\.')
+    | grep -oE 'src="https?://[^"]+\.(php|html)\?[^"]*"' \
+    | sed 's/.*src="//;s/"$//')
 
   if [[ -z "$iframe_urls" ]]; then
     iframe_urls=$(echo "$html" \
-      | grep -oiE 'src="https?://[^"]+\.(php|html)(\?[^"]*)?"' \
-      | sed 's/.*src="//;s/"$//' \
+      | grep -oE 'src="https?://[^"]+"' \
+      | sed 's/.*src="//;s/"//' \
       | grep -viE 'google|facebook|twitter|wp-|jquery|gravatar|gstatic|googletagmanager|doubleclick|analytics|cdn\.|static\.')
   fi
 

@@ -55,11 +55,11 @@ echo -e "${BLUE}🔍 Verificando dependências necessárias...${NC}\n"
 if ! command -v yt-dlp &> /dev/null; then
     echo -e "${YELLOW}📦 Instalando yt-dlp via pip3...${NC}"
     sudo apt install -y python3-pip
-    pip3 install yt-dlp --break-system-packages 2>/dev/null || pip3 install yt-dlp
+    pip3 install yt-dlp curl_cffi --break-system-packages 2>/dev/null || pip3 install yt-dlp curl_cffi
 else
     echo -e "${GREEN}✅ yt-dlp já está instalado.${NC}"
-    echo -e "${YELLOW}🔃 Atualizando yt-dlp para a versão mais recente...${NC}"
-    pip3 install --upgrade yt-dlp --break-system-packages 2>/dev/null || pip3 install --upgrade yt-dlp
+    echo -e "${YELLOW}🔃 Atualizando yt-dlp e curl_cffi...${NC}"
+    pip3 install --upgrade yt-dlp curl_cffi --break-system-packages 2>/dev/null || pip3 install --upgrade yt-dlp curl_cffi
 fi
 
 install_if_missing ffmpeg ffmpeg
@@ -86,8 +86,9 @@ if [[ ":$PATH:" != *":$HOME/.local/bin:"* ]]; then
 fi
 
 echo -e "\n${GREEN}✨ Instalação concluída com sucesso!${NC}"
-echo -e "${CYAN}▶️  Para executar o Deuzimar Downloader, digite:${NC} ${BOLD}deuzimar-downloader${NC}"
-echo -e "${CYAN}📖 Para ver o manual de uso (inclui como instalar), digite:${NC} ${BOLD}deuzimar-downloader${NC} e escolha opção 2\n"
+echo -e "${CYAN}▶️  Para usar, digite:${NC} ${BOLD}deuzimar-downloader${NC}"
+echo -e "${CYAN}  ${BOLD}[1]${NC} Baixar vídeo    ${BOLD}[2]${NC} Baixar áudio (MP3)"
+echo -e "${CYAN}  ${BOLD}[3]${NC} Manual          ${BOLD}[4]${NC} Atualizar yt-dlp\n"
 
 read -p "Deseja executar o Deuzimar Downloader agora? (s/N): " -n 1 -r
 echo

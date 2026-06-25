@@ -45,10 +45,12 @@ remove_path() {
 }
 
 remove_ytdlp() {
-    if confirm "${YELLOW}🗑️  Remover yt-dlp? (pode afetar outros programas)"; then
-        echo -e "${BLUE}Removendo yt-dlp...${NC}"
+    if confirm "${YELLOW}🗑️  Remover yt-dlp e curl_cffi? (pode afetar outros programas)"; then
+        echo -e "${BLUE}Removendo yt-dlp e curl_cffi...${NC}"
         if command -v pip3 &>/dev/null; then
-            pip3 uninstall yt-dlp -y 2>/dev/null && echo -e "${GREEN}  ✓ yt-dlp removido${NC}" || echo -e "${YELLOW}  - Falha ao remover yt-dlp${NC}"
+            pip3 uninstall yt-dlp curl_cffi -y 2>/dev/null \
+                && echo -e "${GREEN}  ✓ yt-dlp e curl_cffi removidos${NC}" \
+                || echo -e "${YELLOW}  - Falha ao remover${NC}"
         fi
     fi
 }
